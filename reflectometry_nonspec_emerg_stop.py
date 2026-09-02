@@ -15,15 +15,15 @@ import keyboard
 
 
 """scan settings"""
-start_angle = 30 #degrees
-end_angle = 60 #degrees 
+start_angle = 45 #degrees
+end_angle = 75 #degrees 
 step = 15 #degrees
 speed = 20 #steps/s
 accel = 15 #steps/s^2
 freq_start = 70 #GHz
-freq_stop = 500 #GHz
+freq_stop = 400 #GHz
 int_time = 3 #ms
-filename = f"130826_nonspec_ref" 
+filename = f"310826_nonspec_linear" 
 set_zero = False #set to True if you want to set the current position to zero before starting the sweep
 
 """ variables """
@@ -66,32 +66,26 @@ def sweep(start, end, step, speed, accel, setzero, freq_start, freq_stop, int_ti
         home_and_zero(large_stage, small_stage, "8MRB450", "8MR174", angle_min, angle_max, res_large) 
     else:
         print(f'Rotating receiver to 30°')
-        print(f'Rotating sample to 0°')
-        rotate_to_angle(large_stage, 30, large=True, stop_event=stop_event)   # ← added stop_event
+        print(f'Rotating sample to 15°')
+        rotate_to_angle(large_stage, 30, large=True, stop_event=stop_event)   
         if stop_event.is_set(): return
-        rotate_to_angle(small_stage, 0, large=False, stop_event=stop_event)   # ← added stop_event
+        rotate_to_angle(small_stage, 15, large=False, stop_event=stop_event)   
         if stop_event.is_set(): return
-        position_l = -int(large_stage.get_position_calb().Position) + 232.605   
+        position_l = position(large_stage, large=True)   
         print(f'Rotated receiver to {position_l}°')
-        position_s = int(small_stage.get_position_calb().Position) + 40
+        position_s = position(small_stage, large=False)
         print(f'Rotated sample to {position_s}°')
 
     if stop_event.is_set(): return
 
     print(f'Rotating receiver to {start}°')
-    #print(f'Rotating sample to {start}°')
-    rotate_to_angle(large_stage, start, large=True, stop_event=stop_event)  # ← added stop_event
+    rotate_to_angle(large_stage, start, large=True, stop_event=stop_event)  
     if stop_event.is_set(): return
-    #rotate_to_angle(small_stage, start, large=False, stop_event=stop_event)   # ← added stop_event
-    #if stop_event.is_set(): return
-    position_l = -int(large_stage.get_position_calb().Position) + 232.605 
+    position_l = position(large_stage, large=True)
     print(f'Rotated receiver to start position: {position_l}°')
-    #position_s = int(small_stage.get_position_calb().Position) + 40
-    #print(f'Rotated sample to start position: {position_s}°')
 
     if stop_event.is_set(): return
 
-    #step_l = 2 * step
     amount = int((end - start) / step)
 
     for i in range(amount + 1):
@@ -101,25 +95,18 @@ def sweep(start, end, step, speed, accel, setzero, freq_start, freq_stop, int_ti
 
         if not i == 0:
             print(f'Rotating receiver to {start + i*step}°')
-            #print(f'Rotating sample to {start + i*step}°')
-            position_l = -int(large_stage.get_position_calb().Position) + 232.605
+            position_l = position(large_stage, large=True)
             
-            rotate_relative(large_stage, step, large=True, stop_event=stop_event)   # ← added stop_event
+            rotate_relative(large_stage, step, large=True, stop_event=stop_event)
             if stop_event.is_set(): return
-            
-            #rotate_relative(small_stage, step, large=False, stop_event=stop_event)    # ← added stop_event
-            #if stop_event.is_set(): return
-
-            position_l = -int(large_stage.get_position_calb().Position) + 232.605
+            position_l = position(large_stage, large=True)
             print(f'Rotated receiver to {position_l}°.')
-            #position_s = int(small_stage.get_position_calb().Position) + 40
-            #print(f'Rotated sample to {position_s}°.')
 
         if stop_event.is_set(): return
 
         print(f'Connecting to Toptica and starting scan')
         n = start + i * step
-        scan(freq_start, freq_stop, int_time, f'{filename}_{n}degrees', stop_event)   # ← added stop_event
+        scan(freq_start, freq_stop, int_time, f'{filename}_{n}degrees', stop_event) 
         if stop_event.is_set(): return
 
 

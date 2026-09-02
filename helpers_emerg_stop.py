@@ -13,7 +13,7 @@ import numpy as np
 
 zero_l = 180.5
 #232.605 #degrees #zero for large rot stage wrt home (line on stage lines up with 0)
-#237.2615966796875 #degrees #zero for large rot stage wrt home #maybe change to 237.571
+
 zero_s = -40 #degrees #zero for small rot stage wrt home
 
 # functions for rotation stages #
@@ -345,7 +345,7 @@ def position(axis, large):
     if large == True:
         return - int(axis.get_position_calb().Position) + zero_l
     else:
-        return int(axis.get_position_calb().Position) + zero_s
+        return int(axis.get_position_calb().Position) - zero_s
 
 
 

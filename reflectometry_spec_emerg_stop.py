@@ -15,15 +15,15 @@ import keyboard
 
 
 """scan settings"""
-start_angle = 15 #degrees
-end_angle = 45 #degrees 
+start_angle = 30 #degrees
+end_angle = 30 #degrees 
 step = 7.5 #degrees
 speed = 20 #steps/s
 accel = 15 #steps/s^2
 freq_start = 70 #GHz
 freq_stop = 400 #GHz
 int_time = 3 #ms
-filename = f"120826_specular_exp" 
+filename = f"270826_specular_ref" 
 set_zero = False #set to True if you want to set the current position to zero before starting the sweep
 
 """ variables """
