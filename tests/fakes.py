@@ -75,16 +75,19 @@ class FakeAxis:
 
 class ImmediateThread:
     """Stand-in for threading.Thread that runs its target synchronously on
-    .start(), so ESC-listener side effects happen deterministically instead
-    of racing the main test thread."""
+    .start(), so sweep and stop-command side effects happen deterministically
+    instead of racing the main test thread."""
 
-    def __init__(self, target=None, args=(), kwargs=None, daemon=None):
+    def __init__(self, target=None, args=(), kwargs=None, daemon=None, name=None):
         self._target = target
         self._args = args
         self._kwargs = kwargs or {}
 
     def start(self):
         self._target(*self._args, **self._kwargs)
+
+    def is_alive(self):
+        return False  # already finished by the time start() returns
 
     def join(self, *_args, **_kwargs):
         pass

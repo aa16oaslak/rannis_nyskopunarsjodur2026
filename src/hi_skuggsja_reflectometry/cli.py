@@ -9,8 +9,9 @@ from . import config as cfgmod
 from . import sweeps
 from .emergency_stop import run_with_emergency_stop
 from .stages import HardwareUnavailable, open_stages
+from .stop_window import StopWindowUnavailable
 
-app = typer.Typer(help="THz reflectometry stage + TOptica sweep control, with ESC emergency stop.")
+app = typer.Typer(help="THz reflectometry stage + TOptica sweep control, with an on-screen emergency stop.")
 config_app = typer.Typer(help="Manage the local configuration file.")
 app.add_typer(config_app, name="config")
 
@@ -32,6 +33,9 @@ def main_callback(
 CONFIG_OPTION = typer.Option(
     None, "--config", help="Path to a config TOML overriding the packaged defaults."
 )
+GUI_OPTION = typer.Option(
+    True, "--gui/--no-gui", help="Show the on-screen STOP button (default). With --no-gui, Ctrl+C is the stop."
+)
 
 
 @config_app.command("init")
@@ -49,6 +53,7 @@ def config_init(
 
 def _run(
     sweep_fn,
+    title: str,
     start_angle: float,
     end_angle: float,
     step: float,
@@ -58,12 +63,23 @@ def _run(
     filename: str,
     set_zero: bool,
     overwrite: bool,
+    gui: bool,
     config_path: Path | None,
 ) -> None:
     cfg = cfgmod.load_config(config_path)
     freq_start = cfg.scan_defaults.freq_start if freq_start is None else freq_start
     freq_stop = cfg.scan_defaults.freq_stop if freq_stop is None else freq_stop
     int_time = cfg.scan_defaults.int_time if int_time is None else int_time
+
+    try:
+        # Fail on a filename collision before any hardware is opened; the
+        # sweep re-checks this itself too.
+        sweeps.check_outputs_available(
+            filename, start_angle, end_angle, step, freq_start, freq_stop, int_time, overwrite
+        )
+    except FileExistsError as e:
+        typer.echo(f"Error: {e}")
+        raise typer.Exit(code=1)
 
     try:
         large_stage, small_stage = open_stages(cfg.stages)
@@ -88,8 +104,10 @@ def _run(
             filename,
             set_zero,
             overwrite,
+            gui=gui,
+            title=title,
         )
-    except FileExistsError as e:
+    except (FileExistsError, StopWindowUnavailable) as e:
         typer.echo(f"Error: {e}")
         raise typer.Exit(code=1)
 
@@ -109,10 +127,12 @@ def spec(
     overwrite: bool = typer.Option(
         False, "--overwrite", help="Allow overwriting existing output files. Default: refuse to clobber."
     ),
+    gui: bool = GUI_OPTION,
     config: Path | None = CONFIG_OPTION,
 ) -> None:
     """Run a specular (theta-2theta) reflectometry sweep."""
-    _run(sweeps.sweep_spec, start_angle, end_angle, step, freq_start, freq_stop, int_time, filename, set_zero, overwrite, config)
+    title = f"Specular sweep: sample {start_angle}° to {end_angle}° in {step}° steps"
+    _run(sweeps.sweep_spec, title, start_angle, end_angle, step, freq_start, freq_stop, int_time, filename, set_zero, overwrite, gui, config)
 
 
 @app.command()
@@ -130,10 +150,12 @@ def nonspec(
     overwrite: bool = typer.Option(
         False, "--overwrite", help="Allow overwriting existing output files. Default: refuse to clobber."
     ),
+    gui: bool = GUI_OPTION,
     config: Path | None = CONFIG_OPTION,
 ) -> None:
     """Run a non-specular reflectometry sweep (receiver stage only)."""
-    _run(sweeps.sweep_nonspec, start_angle, end_angle, step, freq_start, freq_stop, int_time, filename, set_zero, overwrite, config)
+    title = f"Non-specular sweep: receiver {start_angle}° to {end_angle}° in {step}° steps"
+    _run(sweeps.sweep_nonspec, title, start_angle, end_angle, step, freq_start, freq_stop, int_time, filename, set_zero, overwrite, gui, config)
 
 
 def main() -> None:

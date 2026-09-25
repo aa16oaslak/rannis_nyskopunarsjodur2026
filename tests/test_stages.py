@@ -139,7 +139,7 @@ def test_home_and_zero_cancelled_stops_before_moving_axis1(monkeypatch):
     axis1, axis2 = FakeAxis(), FakeAxis()
 
     with pytest.raises(RuntimeError):
-        stages.home_and_zero(axis1, axis2, "large", "small", ANGLE_MIN, ANGLE_MAX, 0.0072, ZERO_L, ZERO_S)
+        stages.home_and_zero(axis1, axis2, "large", "small", ANGLE_MIN, ANGLE_MAX, 0.0072, ZERO_L, ZERO_S, threading.Event())
 
     assert ("homezero",) in axis2.calls  # small stage already homed
     assert axis1.calls == []  # large stage never touched
@@ -150,12 +150,60 @@ def test_home_and_zero_confirmed_homes_both_and_restores_edges(monkeypatch):
     axis1, axis2 = FakeAxis(), FakeAxis()
     original_left, original_right = axis1.edges.LeftBorder, axis1.edges.RightBorder
 
-    stages.home_and_zero(axis1, axis2, "large", "small", ANGLE_MIN, ANGLE_MAX, 0.0072, ZERO_L, ZERO_S)
+    stages.home_and_zero(axis1, axis2, "large", "small", ANGLE_MIN, ANGLE_MAX, 0.0072, ZERO_L, ZERO_S, threading.Event())
 
     assert ("homezero",) in axis1.calls
     assert ("homezero",) in axis2.calls
     assert axis1.edges.LeftBorder == original_left
     assert axis1.edges.RightBorder == original_right
+
+
+def test_home_and_zero_does_nothing_if_already_stopped(monkeypatch):
+    monkeypatch.setattr("builtins.input", lambda _prompt: pytest.fail("should not prompt"))
+    axis1, axis2 = FakeAxis(), FakeAxis()
+    stop_event = threading.Event()
+    stop_event.set()
+
+    with pytest.raises(RuntimeError, match="Emergency stop"):
+        stages.home_and_zero(axis1, axis2, "large", "small", ANGLE_MIN, ANGLE_MAX, 0.0072, ZERO_L, ZERO_S, stop_event)
+
+    assert axis1.calls == axis2.calls == []
+
+
+def test_home_and_zero_stop_during_first_homing_skips_prompt_and_second_stage(monkeypatch):
+    monkeypatch.setattr("builtins.input", lambda _prompt: pytest.fail("should not prompt"))
+    axis1, axis2 = FakeAxis(), FakeAxis()
+    stop_event = threading.Event()
+    axis2.command_homezero = stop_event.set  # STOP pressed while the small stage homes
+
+    with pytest.raises(RuntimeError, match="zero may be wrong"):
+        stages.home_and_zero(axis1, axis2, "large", "small", ANGLE_MIN, ANGLE_MAX, 0.0072, ZERO_L, ZERO_S, stop_event)
+
+    assert axis1.calls == []
+
+
+def test_home_and_zero_stop_pressed_at_prompt_still_blocks_second_homing(monkeypatch):
+    stop_event = threading.Event()
+
+    def type_clear_after_pressing_stop(_prompt):
+        stop_event.set()
+        return "clear"
+
+    monkeypatch.setattr("builtins.input", type_clear_after_pressing_stop)
+    axis1, axis2 = FakeAxis(), FakeAxis()
+
+    with pytest.raises(RuntimeError, match="Emergency stop"):
+        stages.home_and_zero(axis1, axis2, "large", "small", ANGLE_MIN, ANGLE_MAX, 0.0072, ZERO_L, ZERO_S, stop_event)
+
+    assert ("homezero",) not in axis1.calls
+
+
+def test_confirm_path_clear_treats_closed_input_as_cancel(monkeypatch):
+    def closed(_prompt):
+        raise EOFError
+
+    monkeypatch.setattr("builtins.input", closed)
+    assert stages.confirm_path_clear(30, 180, ZERO_L, -ZERO_S) is False
 
 
 def test_open_stages_calibrates_and_sets_boundaries(monkeypatch):

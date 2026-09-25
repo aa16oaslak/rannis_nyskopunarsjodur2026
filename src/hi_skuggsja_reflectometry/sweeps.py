@@ -38,6 +38,22 @@ def _check_outputs_available(
             )
 
 
+def check_outputs_available(
+    filename: str,
+    start: float,
+    end: float,
+    step: float,
+    freq_start: float,
+    freq_stop: float,
+    int_time: float,
+    overwrite: bool,
+) -> None:
+    """Same check the sweeps run first, for callers that want to fail before
+    opening any hardware."""
+    amount = int((end - start) / step)
+    _check_outputs_available(filename, start, step, amount, freq_start, freq_stop, int_time, overwrite)
+
+
 def sweep_nonspec(
     large_stage: ximc.Axis,
     small_stage: ximc.Axis,
@@ -64,7 +80,7 @@ def sweep_nonspec(
     if setzero:
         home_and_zero(
             large_stage, small_stage, STAGE_NAMES[0], STAGE_NAMES[1],
-            angle_min, angle_max, cfg.stages.res_large, zero_l, zero_s,
+            angle_min, angle_max, cfg.stages.res_large, zero_l, zero_s, stop_event,
         )
     else:
         print("Rotating receiver to 30°")
@@ -138,7 +154,7 @@ def sweep_spec(
     if setzero:
         home_and_zero(
             large_stage, small_stage, STAGE_NAMES[0], STAGE_NAMES[1],
-            angle_min, angle_max, cfg.stages.res_large, zero_l, zero_s,
+            angle_min, angle_max, cfg.stages.res_large, zero_l, zero_s, stop_event,
         )
     else:
         print("Rotating receiver to 30°")

@@ -150,10 +150,13 @@ def confirm_path_clear(min_deg: float, max_deg: float, home_large: float, home_s
     print("  2. Make sure no measurement equipment is in the way.")
     print("=" * 60)
 
-    response = input(
-        "\nType 'clear' to confirm the path is clear and proceed, "
-        "or anything else to cancel: "
-    ).strip().lower()
+    try:
+        response = input(
+            "\nType 'clear' to confirm the path is clear and proceed, "
+            "or anything else to cancel: "
+        ).strip().lower()
+    except EOFError:  # stdin closed, or Ctrl+C interrupted the read
+        response = ""
 
     if response == "clear":
         print("✅ Confirmed — proceeding with homing.\n")
@@ -173,20 +176,31 @@ def home_and_zero(
     res: float,
     zero_l: float,
     zero_s: float,
+    stop_event: threading.Event,
 ) -> None:
     """Moves both stages to home and sets zero there.
 
     Requires explicit user confirmation since the home position may be
-    outside the normal safe bounds.
+    outside the normal safe bounds. A stop between or during the homing
+    moves aborts the rest of the procedure.
     """
+    if stop_event.is_set():
+        raise RuntimeError("Emergency stop before homing")
+
     print(f"  [{name2}] Moving to home position ({zero_s}°)...")
 
     axis2.command_homezero()
+
+    if stop_event.is_set():
+        raise RuntimeError(f"[{name2}] Emergency stop during homing -- its zero may be wrong, re-run --set-zero")
 
     print(f"  [{name2}] Homed and zeroed ✓")
 
     if not confirm_path_clear(min_deg, max_deg, zero_l, -zero_s):
         raise RuntimeError(f"[{name1}] Homing aborted by user — coast not confirmed clear")
+
+    if stop_event.is_set():
+        raise RuntimeError(f"[{name1}] Emergency stop before homing")
 
     print(f"  [{name1}] Moving to home position ({-zero_l}°)...")
 
@@ -205,6 +219,8 @@ def home_and_zero(
 
     try:
         axis1.command_homezero()
+        if stop_event.is_set():
+            raise RuntimeError(f"[{name1}] Emergency stop during homing -- its zero may be wrong, re-run --set-zero")
         print(f"  [{name1}] Homed and zeroed ✓")
     finally:
         # Always restore original limits, even if move failed
